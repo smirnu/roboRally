@@ -1,32 +1,65 @@
+# That is a really intresting problem, it reminded me a board game 'Robo Rally'.
 import sys
 
-# the main process running in this function
-def mainProcess(coordMoves = None):
-    userData = handlingTheInput(coordMoves)
-    try:
-        # mars size
-        coordX = int(userData[0])
-        coordY = int(userData[1])
-    except ValueError:
-        print('For coordinates we accept only numbers.')
-        exit()
-    except:
-        print('Something went wrong, try to run the script again.')
-        exit()
+# Creating an object robot to keep all the data for each robot in one place
+class Robot:
+  def __init__(self, initialX, initialY, direction, moves):
+    self.initialX = initialX
+    self.initialY = initialY
+    self.direction = direction
+    self.moves = moves
 
-    listOfStops = movingRobots(coordX, coordY, userData[2:])
-    print(listOfStops)
-    return listOfStops
+# the main process running in this function. Expecting the input in line with spaces in between from the user or 
+# it is possible to pass the coordinates directly into the function. Returns list of coordinates where robots stop
+def mainProcess(allInput = None):
+    marsSurface, robotsAndMoves = handlingTheInput(allInput)
+    
+    endCoordRobots = movingRobots(marsSurface, robotsAndMoves)
+    print(endCoordRobots)
+    return endCoordRobots
 
 
 # Expecting the input in line with spaces in between from the user or 
 # it is possible to pass the coordinates directly into the function 
 # returns array with the data
-def handlingTheInput(coordMoves = None):
-    if coordMoves == None:
-        coordMoves = input('Please, provide: Mars size, coordinates of each robot and their moves. ')
+def handlingTheInput(allInput = None):
+    if allInput == None:
+        allInput = input('Please, provide: Mars size, coordinates of each robot and their moves. ')
     
-    return coordMoves.split()
+    allInput = allInput.split()
+
+    # the size of Mars
+    maxX = castStringToInt(allInput[0])
+    maxY = castStringToInt(allInput[1])
+    
+    marsSurface = (maxX, maxY)
+    robotsAndMoves = splitRobotsAndMoves(allInput[2:])
+    return marsSurface, robotsAndMoves
+
+# input a list of strings, that contains info about each robot, the output the list of objets Robot with all the info per robot
+def splitRobotsAndMoves(robotsAndMovesInStrings):
+    # extract each piece of data per robot. It takes 4 position in array
+    # i: 0 - init robot's coordinate X, 1 - init robot's coordnate Y, 2 - init direction of arobot, 3 - all moves it has to do
+    robotsAndMoves = []
+    count = 0
+    while count < len(robotsAndMovesInStrings):
+        initialX = 0
+        initialY = 0
+        initialDirection = ''
+        robotMoves = ''
+        for i in range(4):
+            if i == 0:
+                initialX = castStringToInt(robotsAndMovesInStrings[count])
+            elif i == 1:
+                initialY = castStringToInt(robotsAndMovesInStrings[count])
+            elif i == 2:
+                initialDirection = robotsAndMovesInStrings[count]
+            else:
+                robotMoves = robotsAndMovesInStrings[count]
+            count += 1
+        robotsAndMoves.append(Robot(initialX, initialY, initialDirection, robotMoves))
+
+    return robotsAndMoves
 
 # going to use it if convertin String to int went wrong
 def exit():
@@ -34,95 +67,71 @@ def exit():
 
 # moving each robot on the field. The function takes coordinates and robot moves
 # returns the list of robot's positions
-def movingRobots(coordX, coordY, robotData):
+def movingRobots(marsSurface, robotsAndMoves):
     # the output of the problem
-    listOfStop = []
+    endCoordRobots = []
     # dictionary with positions of robot's fall from the field
-    coordOfRobFall = dict()
-    
-    # extract each piece of data per robot. It takes 4 position in array
-    # 0 - robot's coordinate X, 1 - robot's coordnate Y, 2 - which direction robot faced, 3 - all moves it has to do
-    count = 0
-    while count < len(robotData):
-        robotCoordX = 0
-        robotCoordY = 0
-        robotFaced = ''
-        robotSteps = ''
-        for i in range(4):
-            try:
-                if i == 0:
-                    robotCoordX = int(robotData[count])
-                elif i == 1:
-                    robotCoordY = int(robotData[count])
-                elif i == 2:
-                    robotFaced = robotData[count]
-                else:
-                    robotSteps = robotData[count]
-            except ValueError:
-                print('For coordinates we accept only numbers.')
-                exit()
-            except:
-                print('Something went wrong, try to run the script again.')
-                exit()
-            count += 1
-    
-        # processing each robot
-        movingRobOnField(coordX, coordY, listOfStop, coordOfRobFall, robotCoordX, robotCoordY, robotFaced, robotSteps)
-    return listOfStop
+    coordRobotsFallOverEdge = dict()
+    # processing each robot
+    for robot in robotsAndMoves:
+        endCoordRobots.append(movingRobotOnMars(marsSurface, coordRobotsFallOverEdge, robot))
+        
+    return endCoordRobots
 
-def movingRobOnField(coordX, coordY, listOfStop, coordOfRobFall, robotCoordX, robotCoordY, robotFaced, robotSteps):
+def movingRobotOnMars(marsSurface, coordRobotsFallOverEdge, robot):
     # going through each robot's move
-    currX = robotCoordX
-    currY = robotCoordY
-    currFaced = robotFaced
-    
-    for move in robotSteps:
+    currX = robot.initialX
+    currY = robot.initialY
+    currDirection = robot.direction
+    lastCoordinate = ''
+
+    for move in robot.moves:
         # turn the robot
         if move in ['L', 'R']:
-            currFaced = turnRobot(currFaced, move)
+            currDirection = turnRobot(currDirection, move)
         # move forward
         elif move == 'F':
             tmpX = currX
             tmpY = currY
             
-            # check if this position is good to go, no one falls here before
-            if isSomeFallBefore(tmpX, tmpY, currFaced, coordOfRobFall): 
+            # check if this position is good to go, no one felt from the same place before. if it is, ignore the move
+            if isSomeFallBefore(tmpX, tmpY, currDirection, coordRobotsFallOverEdge): 
                 continue
 
-            if currFaced == 'N':
+            if currDirection == 'N':
                 tmpY = tmpY + 1
-            elif currFaced == 'S':
+            elif currDirection == 'S':
                 tmpY = tmpY - 1
-            elif currFaced == 'W':
+            elif currDirection == 'W':
                 tmpX = tmpX - 1
             else:
                 tmpX = tmpX + 1
 
-            # check if this move leads out of the field
-            if (tmpX in range(coordX + 1)) and (tmpY in range(coordY + 1)):
+            # check if this move leads us out of the field
+            if (tmpX in range(marsSurface[0] + 1)) and (tmpY in range(marsSurface[1] + 1)):
                 currX = tmpX
                 currY = tmpY
             else:
                 # it means the robot felt from the field. We have to save last coordinates 
                 # and add this position in last seen dictionary
-                listOfStop.append(str(currX) + ' ' + str(currY) + ' ' + currFaced + ' LOST')
+                lastCoordinate = str(currX) + ' ' + str(currY) + ' ' + currDirection + ' LOST'
 
-                if currX in coordOfRobFall:
-                    coordOfRobFall.get(currX).append(str(currY) + currFaced)
+                if currX in coordRobotsFallOverEdge:
+                    coordRobotsFallOverEdge.get(currX).append(str(currY) + currDirection)
                 else:
-                    coordOfRobFall[currX] = [str(currY) + currFaced]
-                return
+                    coordRobotsFallOverEdge[currX] = [str(currY) + currDirection]
+                break
                     
-    listOfStop.append(str(currX) + ' ' + str(currY) + ' ' + currFaced)
-    return
-
-
+    if len(lastCoordinate) == 0: 
+        lastCoordinate = str(currX) + ' ' + str(currY) + ' ' + currDirection
+    return lastCoordinate 
+    
 
 # Find a robot orientation oo the field
 # input current facing and where to turn, output new facing
-def turnRobot(currFacing, turn):
+def turnRobot(currDirection, turn):
     parts = ['N', 'E', 'S', 'W']
-    index = parts.index(currFacing)
+    index = parts.index(currDirection)
     if turn == 'L':
         index = index - 1
     else:
@@ -135,10 +144,23 @@ def turnRobot(currFacing, turn):
         return parts[index]
 
 # check if a robot felt from this position before and return True if so
-def isSomeFallBefore(x, y, faced, coordOfRobFall):
-    if x in coordOfRobFall:
-        if (str(y) + faced) in coordOfRobFall.get(x):
+def isSomeFallBefore(coordX, coordY, direction, coordRobotsFallOverEdge):
+    if coordX in coordRobotsFallOverEdge:
+        if (str(coordY) + direction) in coordRobotsFallOverEdge.get(coordX):
             return True
     return False
+
+
+# helper function with error handling during transformation string to int
+def castStringToInt(stringToCast):
+    try:
+        goodInt = int(stringToCast)
+    except ValueError:
+        print('For coordinates we accept only numbers.')
+        exit()
+    except:
+        print('Something went wrong, try to run the script again.')
+        exit()
+    return goodInt
 
 # mainProcess('5 3 3 2 N FRRFLLFFRRFLL')
